@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace dealeron_trains
@@ -115,6 +116,12 @@ namespace dealeron_trains
         {
             if (!_adjacencyLists.TryGetValue(node, out var adjacencyList)) return new List<string>();
             return adjacencyList.Keys.ToList();
+        }
+
+        public (IList<string> stops, float distance) FindShortestPath(string from, string to)
+        {
+            //TODO dijkstra's
+            throw new NotImplementedException();
         }
     }
 }
