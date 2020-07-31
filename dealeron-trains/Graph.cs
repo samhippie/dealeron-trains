@@ -14,9 +14,11 @@ namespace dealeron_trains
         public void AddRoute(string from, string to, float distance)
         {
             if (!_adjacencyLists.ContainsKey(from))
-            {
                 _adjacencyLists[from] = new Dictionary<string, float>();
-            }
+
+            //go ahead and make this so we can iterate over the dictionary's keys to get all the nodes
+            if (!_adjacencyLists.ContainsKey(to))
+                _adjacencyLists[to] = new Dictionary<string, float>();
 
             _adjacencyLists[from][to] = distance;
         }
@@ -101,13 +103,11 @@ namespace dealeron_trains
                     var childDistance = GetPairDisance(node, child).Value + distance;
 
                     if (maxStops.HasValue && childPath.Count > maxStops.Value + 1) continue;
-                    if (maxDistance.HasValue && childDistance > maxDistance) continue;
+                    if (maxDistance.HasValue && childDistance >= maxDistance) continue;
 
                     open.Enqueue((childPath, childDistance));
-                    if (child == to && (!minStops.HasValue || childPath.Count >= minStops.Value))
-                    {
+                    if (child == to && (!minStops.HasValue || childPath.Count >= minStops.Value + 1))
                         yield return childPath;
-                    }
                 }
             }
         }
@@ -118,10 +118,67 @@ namespace dealeron_trains
             return adjacencyList.Keys.ToList();
         }
 
-        public (IList<string> stops, float distance) FindShortestPath(string from, string to)
+        /// <summary>
+        /// Finds the stops and distance of the shorted path between two nodes. Returns null if no path is found.
+        /// </summary>
+        public (IList<string> stops, float distance)? FindShortestRoute(string from, string to)
         {
-            //TODO dijkstra's
-            throw new NotImplementedException();
+            //Dijkstra's algorithm, except we'll return early when we find `to`
+            //and you can't visit yourself directly, so a path from A to A can't just be "A"
+
+            //best paths so far for each destination
+            //if we relax a child, we'll update it's best path using the parent best path
+            var bestPaths = new Dictionary<string, IEnumerable<string>>
+            {
+                { from, new List<string> { from } },
+            };
+
+            var queue = new MinHeap<float, string>();
+            queue.Insert(0, from);
+            foreach (var adjacencyList in _adjacencyLists)
+            {
+                if (adjacencyList.Key != from)
+                    queue.Insert(float.PositiveInfinity, adjacencyList.Key);
+            }
+
+            var closed = new HashSet<string>();
+            //a couple flags to modify standard dijkstra's algorithm to revisit the root
+            var skippedRoot = false;
+            var revisitedRoot = false;
+            while (queue.Length > 0)
+            {
+                var node = queue.Extract().Value;
+                if (node.value == to && (to != from || revisitedRoot))
+                {
+                    return (bestPaths[node.value].ToList(), node.key);
+                }
+                //need to avoid adding the root to closed so we can revisit it
+                if (!skippedRoot)
+                    skippedRoot = true;
+                else
+                    closed.Add(node.value);
+                foreach (var child in GetChildren(node.value))
+                {
+                    if (closed.Contains(child))
+                        continue;
+                    var newDistance = node.key + GetPairDisance(node.value, child).Value;
+                    if ((child == from && !revisitedRoot) || newDistance < queue.GetKey(child))
+                    {
+                        if (child == from)
+                        {
+                            revisitedRoot = true;
+                            //we removed the root when we started the algorithm, so we have to add it again
+                            queue.Insert(newDistance, child);
+                        }
+                        else
+                        {
+                            queue.DecreaseKey(child, newDistance);
+                        }
+                        bestPaths[child] = bestPaths[node.value].Append(child);
+                    }
+                }
+            }
+            return null;
         }
     }
 }
